@@ -1,0 +1,4 @@
+docker/
+__pycache__/
+*.pyc
+db.sqlite3  # Ignore local database
