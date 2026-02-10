@@ -1,0 +1,53 @@
+name: Build, Test and Push Docker Image to Docker Hub
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Get your code from GitHub
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up QEMU (helps build for different CPU types if needed)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Step 3: Set up Docker Buildx (modern way to build images)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Step 4: Login to Docker Hub (only needed if we push)
+      - name: Login to Docker Hub
+        if: github.event_name == 'push'   # only on push to main, not on PR
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Step 5: Build and push Docker image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name == 'push' }}   # push only on main branch push
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/django-todo-app:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/django-todo-app:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Step 6: (Optional) Run Django tests inside the container
+      #         This proves your app works correctly
+      - name: Run Django tests
+        run: |
+          docker build -t temp-test .
+          docker run --rm temp-test python manage.py test
+          docker run --rm temp-test python manage.py check --deploy
